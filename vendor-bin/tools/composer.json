@@ -1,0 +1,19 @@
+{
+    "require-dev": {
+        "doctrine/coding-standard": "^14.0",
+        "infection/infection": "^0.33",
+        "phpmd/phpmd": "^2.15",
+        "pdepend/pdepend": "^2.16",
+        "phpstan/phpstan": "^2.1",
+        "psalm/plugin-phpunit": "^0.19",
+        "squizlabs/php_codesniffer": "^4.0",
+        "vimeo/psalm": "^6.8"
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/package-versions-deprecated": true,
+            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "infection/extension-installer": true
+        }
+    }
+}
