@@ -1,26 +1,44 @@
 # Ray.Bindings
 
+Binding snapshots and diagnostics for Ray.Di.
+
 ## Installation
 
 ```bash
-composer install
+composer require --dev ray/bindings
 ```
-composer install
 
-## Available Commands
+## Binding snapshots
 
-```text
-bin               bamarni/composer-bin-plugin command
-test              Run unit tests
-coverage          Generate test coverage report
-mutation          Run mutation testing
-cs                Check the coding style
-cs-fix            Fix the coding style
-baseline          Generate baseline for PHPStan and Psalm
-crc               Run composer require checker
-clean             Remove temporary files
-sa                Run static analysis
-tests             Run tests and quality checks
-build             Build project
-run-script --list List all available commands  
+Collect a module after its bindings have been composed:
+
+```php
+use Ray\Bindings\Bindings;
+
+$bindings = new Bindings();
+$module->accept($bindings);
+
+$markdown = $bindings->toMarkdown();
+$html = $bindings->toHtml($composerLock, 'prod-app', $vendorDir);
+```
+
+The snapshot contains the resolved bindings, module composition, pointcuts and
+binding provenance at the time `accept()` is called. Later module changes do
+not mutate an existing snapshot; visiting another module replaces it.
+
+## File renderer
+
+`BindingsMarkdown` can write a cached `bindings.md` file for workflows that
+need a persistent artifact:
+
+```php
+use Ray\Bindings\BindingsMarkdown;
+
+(new BindingsMarkdown())($module->getContainer(), $outputDirectory);
+```
+
+Render that file as a standalone HTML page:
+
+```bash
+vendor/bin/bindings-html bindings.md composer.lock prod-app > bindings.html
 ```

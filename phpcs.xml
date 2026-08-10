@@ -9,7 +9,7 @@
     <arg name="cache" value=".phpcs-cache"/>
 
     <!-- PHP Compatibility -->
-    <config name="php_version" value="80000"/>
+    <config name="php_version" value="80200"/>
 
     <!-- Ignore warnings, show progress of the run and show sniff names -->
     <arg value="nps"/>
@@ -17,6 +17,7 @@
     <!-- Directories to be checked -->
     <file>src</file>
     <file>tests</file>
+    <file>bin</file>
     <exclude-pattern>*/tmp/*</exclude-pattern>
     <exclude-pattern>*/Fake/*</exclude-pattern>
 

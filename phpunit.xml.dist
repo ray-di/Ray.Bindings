@@ -12,6 +12,7 @@
     <source>
         <include>
             <directory>src</directory>
+            <directory>src-deprecated</directory>
         </include>
     </source>
     <php>

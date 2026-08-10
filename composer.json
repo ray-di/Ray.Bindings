@@ -1,6 +1,6 @@
 {
     "name": "ray/bindings",
-    "description": "",
+    "description": "Binding snapshots and diagnostics for Ray.Di",
     "license": "MIT",
     "authors": [
         {
@@ -8,8 +8,11 @@
             "email": "akihito.koriyama@gmail.com"
         }
     ],
+    "bin": ["bin/bindings-html"],
     "require": {
-        "php": "^8.2"
+        "php": "^8.2",
+        "ray/aop": "^2.19",
+        "ray/di": "^2.23.0"
     },
     "require-dev": {
         "bamarni/composer-bin-plugin": "^1.8",
@@ -26,20 +29,20 @@
                 "tests",
                 "tests/Fake"
             ]
-        }
+        },
+        "files": ["tests/Fake/Fixtures.php"]
     },
     "scripts": {
-        "bin": "echo 'bin not installed'",
         "test": "phpunit",
-        "coverage": "php -dzend_extension=xdebug.so -dxdebug.mode=coverage phpunit --coverage-text --coverage-html=build/coverage",
-        "phpdbg": "phpdbg -qrr phpunit --coverage-text --coverage-html ./build/coverage --coverage-clover=build/coverage.xml",
-        "pcov": "php -dextension=pcov.so -d pcov.enabled=1 phpunit --coverage-text --coverage-html=build/coverage --coverage-clover=build/coverage.xml",
+        "coverage": "php -dzend_extension=xdebug.so -dxdebug.mode=coverage ./vendor/bin/phpunit --coverage-text --coverage-html=build/coverage",
+        "phpdbg": "phpdbg -qrr ./vendor/bin/phpunit --coverage-text --coverage-html ./build/coverage --coverage-clover=build/coverage.xml",
+        "pcov": "php -dextension=pcov.so -d pcov.enabled=1 ./vendor/bin/phpunit --coverage-text --coverage-html=build/coverage --coverage-clover=build/coverage.xml",
         "mutation": "infection --threads=max --min-msi=80 --min-covered-msi=90",
         "cs": "phpcs",
-        "cs-fix": "phpcbf src tests",
+        "cs-fix": "phpcbf src tests bin",
         "phpstan": "phpstan analyse -c phpstan.neon",
         "psalm": "psalm --show-info=false",
-        "phpmd": "phpmd text ./phpmd.xml",
+        "phpmd": "phpmd src text ./phpmd.xml",
         "baseline": "phpstan analyse -c phpstan.neon --generate-baseline --allow-empty-baseline && psalm --set-baseline=psalm-baseline.xml",
         "crc": "composer-require-checker check ./composer.json",
         "clean": [
@@ -66,7 +69,6 @@
         "post-update-cmd": "@composer bin all update --ansi"
     },
     "scripts-descriptions": {
-        "bin": "bamarni/composer-bin-plugin command",
         "test": "Run unit tests",
         "coverage": "Generate test coverage report",
         "phpdbg": "Generate test coverage report (phpdbg)",
@@ -85,6 +87,7 @@
         "build": "Build project"
     },
     "config": {
+        "sort-packages": true,
         "allow-plugins": {
             "bamarni/composer-bin-plugin": true
         }
