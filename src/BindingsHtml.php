@@ -72,7 +72,7 @@ use const JSON_UNESCAPED_SLASHES;
  */
 final class BindingsHtml
 {
-    private const VERSION = '1.x';
+    private const VERSION = '4d0b285e5379aa6ed44cb1c5a2a80aa087a7259a';
     public const CSS_URL = 'https://cdn.jsdelivr.net/gh/ray-di/Ray.Bindings@' . self::VERSION . '/docs/bindings/bindings.css';
     public const JS_URL = 'https://cdn.jsdelivr.net/gh/ray-di/Ray.Bindings@' . self::VERSION . '/docs/bindings/bindings.js';
 
