@@ -2,6 +2,13 @@
 
 Binding snapshots and diagnostics for Ray.Di.
 
+[![Continuous Integration](https://github.com/ray-di/Ray.Bindings/actions/workflows/continuous-integration.yml/badge.svg?branch=2.x)](https://github.com/ray-di/Ray.Bindings/actions/workflows/continuous-integration.yml)
+[![Coding Standards](https://github.com/ray-di/Ray.Bindings/actions/workflows/coding-standards.yml/badge.svg?branch=2.x)](https://github.com/ray-di/Ray.Bindings/actions/workflows/coding-standards.yml)
+[![Static Analysis](https://github.com/ray-di/Ray.Bindings/actions/workflows/static-analysis.yml/badge.svg?branch=2.x)](https://github.com/ray-di/Ray.Bindings/actions/workflows/static-analysis.yml)
+[![Latest Stable Version](https://poser.pugx.org/ray/bindings/v)](https://packagist.org/packages/ray/bindings)
+[![Total Downloads](https://poser.pugx.org/ray/bindings/downloads)](https://packagist.org/packages/ray/bindings)
+[![License](https://poser.pugx.org/ray/bindings/license)](https://packagist.org/packages/ray/bindings)
+
 ## Installation
 
 ```bash
