@@ -18,6 +18,7 @@ use function json_decode;
 use function json_encode;
 use function preg_match_all;
 use function preg_replace;
+use function rawurlencode;
 use function rtrim;
 use function str_contains;
 use function str_replace;
@@ -29,6 +30,7 @@ use const ENT_QUOTES;
 use const JSON_HEX_TAG;
 use const JSON_THROW_ON_ERROR;
 use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
  * Renders a Ray.Di bindings.md as an HTML view
@@ -55,6 +57,10 @@ use const JSON_UNESCAPED_SLASHES;
  * {@see page()} wraps it in a standalone document that links the CDN assets.
  * Without JavaScript the <pre> shows the plain log.
  *
+ * Given Graphviz DOT (e.g. from ray/object-visual-grapher), page() also shows
+ * the object graph above the log; the browser lays it out with @viz-js/viz, so
+ * no Graphviz binary is needed.
+ *
  * @psalm-type ComposerPackage = array{
  *     name?: string,
  *     source?: array{url?: string, reference?: string},
@@ -75,6 +81,9 @@ final class BindingsHtml
     private const VERSION = '0ec7d2247d49b7e2c6762989678c9d45012b2e15';
     public const CSS_URL = 'https://cdn.jsdelivr.net/gh/ray-di/Ray.Bindings@' . self::VERSION . '/docs/bindings/bindings.css';
     public const JS_URL = 'https://cdn.jsdelivr.net/gh/ray-di/Ray.Bindings@' . self::VERSION . '/docs/bindings/bindings.js';
+    public const OBJECT_GRAPH_CSS_URL = 'https://cdn.jsdelivr.net/gh/ray-di/Ray.Bindings@' . self::VERSION . '/docs/bindings/object-graph.css';
+    public const OBJECT_GRAPH_JS_URL = 'https://cdn.jsdelivr.net/gh/ray-di/Ray.Bindings@' . self::VERSION . '/docs/bindings/object-graph.js';
+    public const VIZ_JS_URL = 'https://cdn.jsdelivr.net/npm/@viz-js/viz@3.28.0/dist/viz-global.js';
 
     /**
      * The reusable core: the markdown as a <pre> data island, the mount point
@@ -99,16 +108,29 @@ final class BindingsHtml
      * The optional $message renders as a subtitle, e.g. the context the
      * bindings were composed in ("prod-app").
      *
-     * @param non-empty-string|'' $vendorDir Absolute path to composer vendor/ for prefix disambiguation
+     * @param non-empty-string|'' $vendorDir      Absolute path to composer vendor/ for prefix disambiguation
+     * @param string              $objectGraphDot Graphviz DOT of the module; empty omits the object graph
      */
-    public function page(string $bindingsMarkdown, string $composerLock = '', string $message = '', string $vendorDir = ''): string
-    {
+    public function page(
+        string $bindingsMarkdown,
+        string $composerLock = '',
+        string $message = '',
+        string $vendorDir = '',
+        string $objectGraphDot = '',
+    ): string {
         $fragment = $this->fragment($bindingsMarkdown, $composerLock, $vendorDir);
         $sub = $message === ''
             ? ''
             : "\n<div class=\"sub\">" . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</div>';
         $css = self::CSS_URL;
         $script = self::JS_URL;
+        $graphCss = $graph = $graphScripts = '';
+        if ($objectGraphDot !== '') {
+            $graphCss = "\n<link rel=\"stylesheet\" href=\"" . self::OBJECT_GRAPH_CSS_URL . '">';
+            $graph = "\n" . $this->objectGraph($objectGraphDot);
+            $graphScripts = "\n<script src=\"" . self::VIZ_JS_URL . '" defer></script>'
+                . "\n<script src=\"" . self::OBJECT_GRAPH_JS_URL . '" defer></script>';
+        }
 
         return <<<HTML
             <!doctype html>
@@ -117,19 +139,64 @@ final class BindingsHtml
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <title>Ray.Di bindings</title>
-            <link rel="stylesheet" href="$css">
+            <link rel="stylesheet" href="$css">$graphCss
             </head>
             <body>
             <div class="wrap">
             <header>
             <h1>Ray.Di bindings</h1>$sub
-            </header>
+            </header>$graph
             $fragment
             </div>
-            <script src="$script"></script>
+            <script src="$script"></script>$graphScripts
             </body>
             </html>
 
+            HTML;
+    }
+
+    /**
+     * The object graph section: the DOT as a JSON data island, the mount point
+     * the graph script renders into, and a link to download the DOT itself.
+     */
+    private function objectGraph(string $dot): string
+    {
+        $dotJson = json_encode($dot, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $dotHref = 'data:text/vnd.graphviz;charset=utf-8,' . rawurlencode($dot);
+
+        return <<<HTML
+            <section class="object-graph-section" aria-label="Object graph overview">
+            <div class="object-graph-label">
+            <span class="title">Object graph</span>
+            <span class="hint">Wheel to zoom · drag to pan · click a class to focus · double-click for source · <a href="$dotHref" download="object-graph.dot">DOT</a></span>
+            </div>
+            <form class="object-graph-search" role="search">
+            <label for="object-graph-search">Find node</label>
+            <input type="search" id="object-graph-search" placeholder="Search classes or bindings…" autocomplete="off" disabled>
+            <output id="object-graph-search-count" for="object-graph-search" aria-live="polite">0 / 0</output>
+            </form>
+            <div class="object-graph-frame">
+            <div class="object-graph" id="object-graph-mount" tabindex="0" aria-label="Object graph">
+            <p class="object-graph-status">Rendering object graph…</p>
+            </div>
+            <div class="object-graph-zoom" role="group" aria-label="Object graph zoom">
+            <button type="button" id="object-graph-zoom-in" aria-label="Zoom in" title="Zoom in" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle><path d="M14.5 14.5 20 20M10 7v6M7 10h6"></path></svg>
+            </button>
+            <button type="button" id="object-graph-zoom-out" aria-label="Zoom out" title="Zoom out" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle><path d="M14.5 14.5 20 20M7 10h6"></path></svg>
+            </button>
+            <button type="button" id="object-graph-reset" aria-label="Reset view" title="Reset view" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+            </button>
+            <button type="button" id="object-graph-fullscreen" aria-label="Fullscreen" title="Fullscreen" disabled>
+            <svg class="icon-enter" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>
+            <svg class="icon-exit" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg>
+            </button>
+            </div>
+            </div>
+            <script type="application/json" id="object-graph-dot">$dotJson</script>
+            </section>
             HTML;
     }
 

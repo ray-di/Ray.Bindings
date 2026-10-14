@@ -22,9 +22,11 @@ use function mkdir;
 use function preg_match;
 use function proc_close;
 use function proc_open;
+use function rawurlencode;
 use function rmdir;
 use function scandir;
 use function stream_get_contents;
+use function strpos;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -69,6 +71,9 @@ class BindingsHtmlTest extends TestCase
         bind    Acme\Shop\CartInterface- => (dependency) Acme\Shop\Cart @Acme\Shop\ShopModule
         MD;
 
+    /** Carries a "</script>" to prove the data island cannot be closed early. */
+    private const DOT = 'digraph injector { a [label="</script>"]; a -> b; }';
+
     private string $bin;
     private string $dir;
     private string $md;
@@ -107,6 +112,28 @@ class BindingsHtmlTest extends TestCase
         $this->assertStringContainsString('<link rel="stylesheet" href="' . BindingsHtml::CSS_URL . '">', $page);
         $this->assertStringContainsString('<script src="' . BindingsHtml::JS_URL . '">', $page);
         $this->assertStringContainsString('<pre id="src">', $page);
+    }
+
+    public function testPageOmitsTheObjectGraphWithoutDot(): void
+    {
+        $page = (new BindingsHtml())->page(self::MARKDOWN);
+
+        $this->assertStringNotContainsString('object-graph', $page);
+        $this->assertStringNotContainsString(BindingsHtml::VIZ_JS_URL, $page);
+    }
+
+    public function testPageEmbedsTheObjectGraphGivenDot(): void
+    {
+        $page = (new BindingsHtml())->page(self::MARKDOWN, '', '', '', self::DOT);
+
+        $this->assertStringContainsString('<link rel="stylesheet" href="' . BindingsHtml::OBJECT_GRAPH_CSS_URL . '">', $page);
+        $this->assertStringContainsString('<script src="' . BindingsHtml::VIZ_JS_URL . '" defer></script>', $page);
+        $this->assertStringContainsString('<script src="' . BindingsHtml::OBJECT_GRAPH_JS_URL . '" defer></script>', $page);
+        $this->assertStringContainsString('download="object-graph.dot"', $page);
+        $this->assertStringContainsString(rawurlencode(self::DOT), $page);
+        $this->assertSame(1, preg_match('#<script type="application/json" id="object-graph-dot">(.*?)</script>#s', $page, $matches));
+        $this->assertSame(self::DOT, json_decode($matches[1] ?? '', true, 512, JSON_THROW_ON_ERROR));
+        $this->assertLessThan((int) strpos($page, '<pre id="src">'), (int) strpos($page, 'id="object-graph-mount"'));
     }
 
     public function testPageRendersTheOptionalMessageAsSubtitle(): void
@@ -257,6 +284,26 @@ class BindingsHtmlTest extends TestCase
         $this->assertSame(0, $exit);
         $this->assertStringContainsString('id="srcmap"', $stdout);
         $this->assertStringContainsString('"n":"ray/di"', $stdout);
+    }
+
+    public function testCliEmbedsTheObjectGraphWhenGivenADotFile(): void
+    {
+        $dot = $this->dir . '/graph.dot';
+        file_put_contents($dot, self::DOT);
+
+        [$stdout, , $exit] = $this->runTool([$this->md, '', 'prod-app', $dot]);
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('id="object-graph-dot"', $stdout);
+        $this->assertStringContainsString('<div class="sub">prod-app</div>', $stdout);
+    }
+
+    public function testCliExitsNonZeroWhenTheDotFileCannotBeRead(): void
+    {
+        [, $stderr, $exit] = $this->runTool([$this->md, '', '', $this->dir . '/missing.dot']);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('cannot read', $stderr);
     }
 
     public function testCliExitsNonZeroWhenTheMarkdownCannotBeRead(): void
