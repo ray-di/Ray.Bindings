@@ -78,7 +78,7 @@ use const JSON_UNESCAPED_UNICODE;
  */
 final class BindingsHtml
 {
-    private const VERSION = '0ec7d2247d49b7e2c6762989678c9d45012b2e15';
+    private const VERSION = 'ffe64907717dcd1717c2f17c9a43867ddb3211c8';
     public const CSS_URL = 'https://cdn.jsdelivr.net/gh/ray-di/Ray.Bindings@' . self::VERSION . '/docs/bindings/bindings.css';
     public const JS_URL = 'https://cdn.jsdelivr.net/gh/ray-di/Ray.Bindings@' . self::VERSION . '/docs/bindings/bindings.js';
     public const OBJECT_GRAPH_CSS_URL = 'https://cdn.jsdelivr.net/gh/ray-di/Ray.Bindings@' . self::VERSION . '/docs/bindings/object-graph.css';
