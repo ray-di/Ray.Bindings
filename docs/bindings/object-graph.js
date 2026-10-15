@@ -510,16 +510,16 @@
     try {
       dot = JSON.parse(raw.textContent || '""');
     } catch (error) {
-      showStatus('Invalid object-graph DOT payload. Click to open object-graph.dot.');
+      showStatus('Invalid object-graph DOT payload. Use the DOT link above to download it.');
       return;
     }
     if (!dot) {
-      showStatus('Empty object graph. Click to open object-graph.dot.');
+      showStatus('Empty object graph. Use the DOT link above to download it.');
       return;
     }
     var Viz = await getViz();
     if (!Viz) {
-      showStatus('Could not load viz.js. Click to open object-graph.dot.');
+      showStatus('Could not load viz.js. Use the DOT link above to download it.');
       return;
     }
 
@@ -532,7 +532,7 @@
       mount.replaceChildren(svg);
       enableSearch(svg);
     } catch (error) {
-      showStatus('Could not render object graph. Click to open object-graph.dot.');
+      showStatus('Could not render object graph. Use the DOT link above to download it.');
     }
   }
 

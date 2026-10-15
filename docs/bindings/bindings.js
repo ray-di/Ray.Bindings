@@ -101,9 +101,9 @@
     }
 
     function renderBinding(line) {
-      var m = line.match(/^(.*?) => (.*)$/);
+      var m = line.match(/^(.*?) =>(?: (.*))?$/);
       if (!m) { return '<div class="b"><code>' + esc(line) + '</code></div>'; }
-      var target = m[2], aop = '';
+      var target = m[2] || '', aop = '';
       // peel off a trailing " (aop) +method(Interceptor) ..." and group methods by interceptor
       var am = target.match(/ \(aop\)((?: \+\w+\([^)]*\))+)\s*$/);
       if (am) {
@@ -122,11 +122,12 @@
           return '<span class="mod">' + link(i, esc(i.split('\\').pop())) + '</span> <span class="methods">' + esc(by[i].join(', ')) + '</span>';
         }).join(' · ') + '</div>';
       }
-      // collapse noise: a compiled null object, or a class bound to itself (untargeted).
-      // Ray.Di 2.23's ModuleString pre-collapses self-bound to "(untargeted)"; keep the
-      // legacy "(dependency) Foo" + matching-index form as a fallback for older snapshots.
+      // collapse noise: a null object, or a class bound to itself (untargeted).
+      // Ray.Di 2.23 prints a null object as an empty target and pre-collapses self-bound
+      // to "(untargeted)"; the compiled-class and "(dependency) Foo" forms are kept for
+      // older snapshots.
       var tgt;
-      if (/[0-9a-f]{8}Null$/.test(target)) {
+      if (target === '' || /[0-9a-f]{8}Null$/.test(target)) {
         tgt = '<span class="nil">(null object)</span>';
       } else if (target === '(untargeted)' || (target.indexOf('(dependency) ') === 0 && m[1] === target.slice(13) + '-')) {
         tgt = '<span class="nil">(untargeted)</span>';

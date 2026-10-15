@@ -28,6 +28,7 @@ use function substr;
 
 use const ENT_QUOTES;
 use const JSON_HEX_TAG;
+use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_THROW_ON_ERROR;
 use const JSON_UNESCAPED_SLASHES;
 use const JSON_UNESCAPED_UNICODE;
@@ -161,7 +162,7 @@ final class BindingsHtml
      */
     private function objectGraph(string $dot): string
     {
-        $dotJson = json_encode($dot, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $dotJson = json_encode($dot, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
         $dotHref = 'data:text/vnd.graphviz;charset=utf-8,' . rawurlencode($dot);
 
         return <<<HTML
