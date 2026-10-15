@@ -26,9 +26,9 @@ final class Bindings implements ModuleVisitorInterface
         return $this->getMarkdown();
     }
 
-    public function toHtml(string $composerLock = '', string $message = '', string $vendorDir = ''): string
+    public function toHtml(string $composerLock = '', string $message = '', string $vendorDir = '', string $objectGraphDot = ''): string
     {
-        return (new BindingsHtml())->page($this->getMarkdown(), $composerLock, $message, $vendorDir);
+        return (new BindingsHtml())->page($this->getMarkdown(), $composerLock, $message, $vendorDir, $objectGraphDot);
     }
 
     private function getMarkdown(): string

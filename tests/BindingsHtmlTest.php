@@ -7,6 +7,7 @@ namespace Ray\Bindings;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function array_map;
 use function array_merge;
 use function assert;
 use function dirname;
@@ -22,9 +23,11 @@ use function mkdir;
 use function preg_match;
 use function proc_close;
 use function proc_open;
+use function rawurlencode;
 use function rmdir;
 use function scandir;
 use function stream_get_contents;
+use function strpos;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -69,6 +72,9 @@ class BindingsHtmlTest extends TestCase
         bind    Acme\Shop\CartInterface- => (dependency) Acme\Shop\Cart @Acme\Shop\ShopModule
         MD;
 
+    /** Carries "</script>" to prove the data island cannot be closed early, and non-ASCII kept as-is. */
+    private const DOT = 'digraph injector { a [label="</script>"]; a -> b [label="ü"]; }';
+
     private string $bin;
     private string $dir;
     private string $md;
@@ -97,7 +103,7 @@ class BindingsHtmlTest extends TestCase
         $this->assertSame(1, preg_match('#<pre id="src">(.*)</pre>#s', $fragment, $matches));
         $encodedMarkdown = $matches[1] ?? '';
         $this->assertSame(self::MARKDOWN, html_entity_decode($encodedMarkdown, ENT_QUOTES, 'UTF-8'));
-        $this->assertStringContainsString('<div id="view"></div>', $fragment);
+        $this->assertStringContainsString("</pre>\n<div id=\"view\"></div>", $fragment);
     }
 
     public function testPageLinksTheSharedCdnAssets(): void
@@ -107,6 +113,38 @@ class BindingsHtmlTest extends TestCase
         $this->assertStringContainsString('<link rel="stylesheet" href="' . BindingsHtml::CSS_URL . '">', $page);
         $this->assertStringContainsString('<script src="' . BindingsHtml::JS_URL . '">', $page);
         $this->assertStringContainsString('<pre id="src">', $page);
+    }
+
+    public function testPageOmitsTheObjectGraphWithoutDot(): void
+    {
+        $page = (new BindingsHtml())->page(self::MARKDOWN);
+
+        $this->assertStringNotContainsString('object-graph', $page);
+        $this->assertStringNotContainsString(BindingsHtml::VIZ_JS_URL, $page);
+    }
+
+    public function testPageEmbedsTheObjectGraphGivenDot(): void
+    {
+        $page = (new BindingsHtml())->page(self::MARKDOWN, '', '', '', self::DOT);
+
+        $this->assertStringContainsString('<link rel="stylesheet" href="' . BindingsHtml::OBJECT_GRAPH_CSS_URL . '">', $page);
+        $this->assertStringContainsString('<script src="' . BindingsHtml::VIZ_JS_URL . '" defer></script>', $page);
+        $this->assertStringContainsString('<script src="' . BindingsHtml::OBJECT_GRAPH_JS_URL . '" defer></script>', $page);
+        $this->assertStringContainsString('href="data:text/vnd.graphviz;charset=utf-8,' . rawurlencode(self::DOT) . '" download="object-graph.dot"', $page);
+        $this->assertStringContainsString('label=\\"ü\\"', $page);
+        $this->assertStringContainsString("</header>\n<section class=\"object-graph-section\"", $page);
+        $this->assertStringContainsString("</section>\n<pre id=\"src\">", $page);
+        $this->assertSame(1, preg_match('#<script type="application/json" id="object-graph-dot">(.*?)</script>#s', $page, $matches));
+        $this->assertSame(self::DOT, json_decode($matches[1] ?? '', true, 512, JSON_THROW_ON_ERROR));
+        $this->assertLessThan((int) strpos($page, '<pre id="src">'), (int) strpos($page, 'id="object-graph-mount"'));
+    }
+
+    public function testInvalidUtf8InDotIsSubstitutedRatherThanThrown(): void
+    {
+        $page = (new BindingsHtml())->page(self::MARKDOWN, '', '', '', "digraph { a [label=\"\xff\"]; }");
+
+        $this->assertSame(1, preg_match('#id="object-graph-dot">(.*?)</script>#s', $page, $matches));
+        $this->assertSame("digraph { a [label=\"\u{FFFD}\"]; }", json_decode($matches[1] ?? '', true, 512, JSON_THROW_ON_ERROR));
     }
 
     public function testPageRendersTheOptionalMessageAsSubtitle(): void
@@ -127,6 +165,7 @@ class BindingsHtmlTest extends TestCase
         $this->assertStringContainsString('"r":"abcdef1234"', $page);
         $this->assertStringContainsString('"d":"src/di"', $page);
         $this->assertStringNotContainsString('"x":1', $page);
+        $this->assertStringContainsString("<div id=\"view\"></div>\n<script type=\"application/json\" id=\"srcmap\">", $page);
     }
 
     public function testOmitsTheSourceMapWithoutAComposerLock(): void
@@ -204,6 +243,57 @@ class BindingsHtmlTest extends TestCase
         $this->assertStringNotContainsString('id="srcmap"', (new BindingsHtml())->page(self::MARKDOWN, $lock));
     }
 
+    public function testIncompletePackagesAreSkippedWithoutDroppingTheRest(): void
+    {
+        $lock = (string) json_encode([
+            'packages' => [
+                ['source' => ['url' => 'https://github.com/x/no-name.git', 'reference' => 'r'], 'autoload' => ['psr-4' => ['Ray\\Di\\' => 'src']]],
+                ['name' => 'x/no-url', 'source' => ['reference' => 'r'], 'autoload' => ['psr-4' => ['Ray\\Di\\' => 'src']]],
+                ['name' => 'x/no-ref', 'source' => ['url' => 'https://github.com/x/no-ref.git'], 'autoload' => ['psr-4' => ['Ray\\Di\\' => 'src']]],
+                [
+                    'name' => 'ray/di',
+                    'source' => ['url' => 'https://github.com/ray-di/Ray.Di.git', 'reference' => 'abcdef1234'],
+                    'autoload' => ['psr-4' => ['Unused\\' => 'src/unused', 'Ray\\Di\\' => ['src/di']]],
+                ],
+            ],
+            'packages-dev' => [
+                [
+                    'name' => 'acme/shop',
+                    'source' => ['url' => 'https://github.com/acme/shop.git', 'reference' => 'shopref'],
+                    'autoload' => ['psr-4' => ['Acme\\' => [], 'Acme\\Shop\\' => 'src']],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(
+            [['Ray\\Di\\', 'ray/di', 'src/di'], ['Acme\\Shop\\', 'acme/shop', 'src']],
+            $this->sourceMapOf((new BindingsHtml())->page(self::MARKDOWN, $lock)),
+        );
+    }
+
+    public function testUnsharedPrefixesAreAllKeptWhenVendorDirIsGiven(): void
+    {
+        $lock = (string) json_encode([
+            'packages' => [
+                [
+                    'name' => 'ray/di',
+                    'source' => ['url' => 'https://github.com/ray-di/Ray.Di.git', 'reference' => 'abcdef1234'],
+                    'autoload' => ['psr-4' => ['Ray\\Di\\' => 'src/di']],
+                ],
+                [
+                    'name' => 'acme/shop',
+                    'source' => ['url' => 'https://github.com/acme/shop.git', 'reference' => 'shopref'],
+                    'autoload' => ['psr-4' => ['Acme\\Shop\\' => 'src']],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(
+            [['Ray\\Di\\', 'ray/di', 'src/di'], ['Acme\\Shop\\', 'acme/shop', 'src']],
+            $this->sourceMapOf((new BindingsHtml())->page(self::MARKDOWN, $lock, '', $this->dir)),
+        );
+    }
+
     public function testGitAtUrlIsNormalisedToHttps(): void
     {
         $lock = (string) json_encode([
@@ -259,6 +349,26 @@ class BindingsHtmlTest extends TestCase
         $this->assertStringContainsString('"n":"ray/di"', $stdout);
     }
 
+    public function testCliEmbedsTheObjectGraphWhenGivenADotFile(): void
+    {
+        $dot = $this->dir . '/graph.dot';
+        file_put_contents($dot, self::DOT);
+
+        [$stdout, , $exit] = $this->runTool([$this->md, '', 'prod-app', $dot]);
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('id="object-graph-dot"', $stdout);
+        $this->assertStringContainsString('<div class="sub">prod-app</div>', $stdout);
+    }
+
+    public function testCliExitsNonZeroWhenTheDotFileCannotBeRead(): void
+    {
+        [, $stderr, $exit] = $this->runTool([$this->md, '', '', $this->dir . '/missing.dot']);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('cannot read', $stderr);
+    }
+
     public function testCliExitsNonZeroWhenTheMarkdownCannotBeRead(): void
     {
         [, $stderr, $exit] = $this->runTool([$this->dir . '/missing.md']);
@@ -273,6 +383,8 @@ class BindingsHtmlTest extends TestCase
         mkdir($vendor . '/bear/package/src/Provide/Router', 0777, true);
         mkdir($vendor . '/bear/aura-router-module/src/Provide/Router', 0777, true);
         file_put_contents($vendor . '/bear/package/src/Provide/Router/WebRouter.php', "<?php\n");
+        // also present in the second package: the first candidate in lock order wins
+        file_put_contents($vendor . '/bear/aura-router-module/src/Provide/Router/WebRouter.php', "<?php\n");
         file_put_contents($vendor . '/bear/aura-router-module/src/Provide/Router/AuraRouter.php', "<?php\n");
         file_put_contents(
             $vendor . '/bear/aura-router-module/src/Provide/Router/AuraRouterModule.php',
@@ -280,12 +392,21 @@ class BindingsHtmlTest extends TestCase
         );
 
         $markdown = "# Ray.Di bindings\n\n## Bindings\n\n"
+            . "Acme\\Package\\Service- => (dependency)\n"
             . "BEAR\\Package\\Provide\\Router\\WebRouter- => (dependency)\n"
             . "BEAR\\Package\\Provide\\Router\\AuraRouter- => (dependency)\n"
             . "BEAR\\Package\\Provide\\Router\\AuraRouterModule- => (dependency)\n"
-            . "Acme\\Package\\Service- => (dependency)\n";
+            . "BEAR\\Package\\Provide\\Router\\WebRouter- => (dependency)\n";
         $lock = (string) json_encode([
             'packages' => [
+                [
+                    'name' => 'acme/package',
+                    'source' => [
+                        'url' => 'https://github.com/acme/package.git',
+                        'reference' => 'acmeref',
+                    ],
+                    'autoload' => ['psr-4' => ['Acme\\Package\\' => 'src/']],
+                ],
                 [
                     'name' => 'bear/package',
                     'source' => [
@@ -302,14 +423,6 @@ class BindingsHtmlTest extends TestCase
                     ],
                     'autoload' => ['psr-4' => ['BEAR\\Package\\' => 'src/']],
                 ],
-                [
-                    'name' => 'acme/package',
-                    'source' => [
-                        'url' => 'https://github.com/acme/package.git',
-                        'reference' => 'acmeref',
-                    ],
-                    'autoload' => ['psr-4' => ['Acme\\Package\\' => 'src/']],
-                ],
             ],
         ]);
 
@@ -323,6 +436,7 @@ class BindingsHtmlTest extends TestCase
         $byClass = [];
         foreach ($map as $entry) {
             if (isset($entry['path'])) {
+                $this->assertArrayNotHasKey($entry['p'], $byClass, 'one override per class');
                 $byClass[$entry['p']] = $entry;
             }
         }
@@ -373,6 +487,16 @@ class BindingsHtmlTest extends TestCase
         }
 
         rmdir($directory);
+    }
+
+    /** @return list<array{0: string, 1: string, 2: string}> prefix, package name, source dir per srcmap entry */
+    private function sourceMapOf(string $page): array
+    {
+        $this->assertSame(1, preg_match('#id="srcmap">(.+?)</script>#s', $page, $matches));
+        /** @var list<array{p: string, n: string, d: string}> $map */
+        $map = json_decode($matches[1] ?? '', true, 512, JSON_THROW_ON_ERROR);
+
+        return array_map(static fn (array $entry): array => [$entry['p'], $entry['n'], $entry['d']], $map);
     }
 
     /** A composer.lock whose one package's namespace (Ray\Di\) appears in the markdown. */

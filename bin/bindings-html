@@ -7,8 +7,8 @@ declare(strict_types=1);
  * bindings-html — render a Ray.Di bindings.md as an HTML view.
  *
  * Usage:
- *   bin/bindings-html <path/to/bindings.md> [composer.lock] [message] > bindings.html
- *   bin/bindings-html - [composer.lock] [message] < bindings.md       > bindings.html
+ *   bin/bindings-html <path/to/bindings.md> [composer.lock] [message] [graph.dot] > bindings.html
+ *   bin/bindings-html - [composer.lock] [message] [graph.dot] < bindings.md       > bindings.html
  *
  * The markdown is embedded verbatim in a <pre> data island; a shared viewer
  * (stylesheet + script served from jsDelivr) decorates it on load: colour-coded
@@ -18,7 +18,8 @@ declare(strict_types=1);
  * Pass a composer.lock to link each class to its source — a GitHub URL for
  * humans and the local vendor/ path (data-src) for agents. The optional
  * [message] renders as a subtitle, e.g. the context the bindings were composed
- * in.
+ * in. Pass a Graphviz DOT file (e.g. from ray/object-visual-grapher) to show
+ * the object graph above the log.
  *
  * The rendering lives in Ray\Bindings\BindingsHtml so every consumer — this
  * CLI, a documentation generator — reuses the same viewer.
@@ -43,7 +44,7 @@ require $autoload;
 
 $path = $argv[1] ?? null;
 if ($path === null || $path === '-h' || $path === '--help') {
-    fwrite(STDERR, "usage: bindings-html <bindings.md|-> [composer.lock] [message] > out.html\n");
+    fwrite(STDERR, "usage: bindings-html <bindings.md|-> [composer.lock] [message] [graph.dot] > out.html\n");
     exit($path === null ? 1 : 0);
 }
 
@@ -63,4 +64,14 @@ if ($lockPath !== '') {
     }
 }
 
-echo (new BindingsHtml())->page($md, $lock, $argv[3] ?? '');
+$dot = '';
+$dotPath = $argv[4] ?? '';
+if ($dotPath !== '') {
+    $dot = @file_get_contents($dotPath);
+    if ($dot === false) {
+        fwrite(STDERR, "bindings-html: cannot read {$dotPath}\n");
+        exit(1);
+    }
+}
+
+echo (new BindingsHtml())->page($md, $lock, $argv[3] ?? '', '', $dot);

@@ -132,6 +132,16 @@ final class BindingsTest extends TestCase
         $this->assertStringContainsString(FakeRobotInterface::class . '-', $html);
     }
 
+    public function testToHtmlPassesTheObjectGraphDot(): void
+    {
+        $bindings = new Bindings();
+        (new FakeToBindModule())->accept($bindings);
+
+        $html = $bindings->toHtml('', '', '', 'digraph injector {}');
+
+        $this->assertStringContainsString('id="object-graph-dot">"digraph injector {}"</script>', $html);
+    }
+
     private function assertBindingsAreOnePerLine(string $markdown, int $expectedCount): void
     {
         $matched = preg_match('/## Bindings\n\n(.+?)\n\n## Modules/s', $markdown, $matches);

@@ -39,4 +39,21 @@ time. Render that file as a standalone HTML page:
 vendor/bin/bindings-html bindings.md composer.lock prod-app > bindings.html
 ```
 
+### Object graph
+
+Pass a Graphviz DOT of the module to show the object graph above the bindings.
+The browser lays it out, so no Graphviz binary is needed. Generate the DOT with
+[ray/object-visual-grapher](https://github.com/ray-di/Ray.ObjectGrapher):
+
+```php
+use Ray\ObjectGrapher\ObjectGrapher;
+
+$dot = (new ObjectGrapher())($module);
+$html = $bindings->toHtml($composerLock, 'prod-app', $vendorDir, $dot);
+```
+
+```bash
+vendor/bin/bindings-html bindings.md composer.lock prod-app graph.dot > bindings.html
+```
+
 <img src="https://ray-di.github.io/images/bindings.png" alt="bindings.html: object graph, summary, and binding list" width="100%">
