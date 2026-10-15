@@ -489,8 +489,6 @@ class BindingsHtmlTest extends TestCase
         rmdir($directory);
     }
 
-    /** A composer.lock whose one package's namespace (Ray\Di\) appears in the markdown. */
-
     /** @return list<array{0: string, 1: string, 2: string}> prefix, package name, source dir per srcmap entry */
     private function sourceMapOf(string $page): array
     {
@@ -501,6 +499,7 @@ class BindingsHtmlTest extends TestCase
         return array_map(static fn (array $entry): array => [$entry['p'], $entry['n'], $entry['d']], $map);
     }
 
+    /** A composer.lock whose one package's namespace (Ray\Di\) appears in the markdown. */
     private function composerLock(): string
     {
         return (string) json_encode([
